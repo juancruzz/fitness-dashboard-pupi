@@ -87,23 +87,42 @@ try:
         status = "Recomposición" if delta_peso_total > 0 and delta_cint_total <= 0 else "En Proceso"
         st.metric("Status Coach", status)
 
-    # FILA 2: GRÁFICOS APILADOS (VERTICAL STACK)
-    # Creamos subplots: 2 filas, 1 columna, comparten eje X
+# FILA 2: GRÁFICOS APILADOS (VERTICAL STACK)
+    # Definimos dos niveles: Arriba el Peso (kg), Abajo la Cintura (cm)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
                         vertical_spacing=0.1,
-                        subplot_titles=(f"Tendencia de Peso (kg)", f"Dinámica de Cintura (cm)"))
+                        subplot_titles=("Tendencia de Peso (kg)", "Dinámica de Cintura (cm)"))
 
-    # Gráfico 1: Peso y Media Móvil
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col], name="Peso Diario", mode='lines+markers', line=dict(color='#58a6ff', width=1), opacity=0.5), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df['Media_Movil'], name="Media Móvil (Tendencia)", line=dict(color='#3fb950', width=4)), row=1, col=1)
+    # --- GRÁFICO 1: PESO ---
+    # Peso real (puntos finos)
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col], name="Peso Diario", mode='markers+lines', 
+                             line=dict(color='#58a6ff', width=1), opacity=0.4), row=1, col=1)
+    
+    # Media Móvil (Línea de tendencia gruesa)
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df['Media_Movil'], name="Tendencia (Media Móvil)", 
+                             line=dict(color='#3fb950', width=4)), row=1, col=1)
 
-    # Gráfico 2: Cintura
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[cint_col], name="Cintura", fill='tozeroy', line=dict(color='#f85149', width=3)), row=2, col=1)
+    # --- GRÁFICO 2: CINTURA (CON ZOOM) ---
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[cint_col], name="Cintura", mode='lines+markers',
+                             line=dict(color='#f85149', width=3),
+                             marker=dict(size=8, symbol='diamond')), row=2, col=1)
+    
+    # Línea de promedio para tener una referencia visual fija
+    cint_prom = df[cint_col].mean()
+    fig.add_hline(y=cint_prom, line_dash="dash", line_color="#ffffff", opacity=0.3, 
+                  annotation_text="Promedio", row=2, col=1)
 
-    # Estilo del Layout
-    fig.update_layout(height=800, template="plotly_dark", showlegend=True,
-                      margin=dict(l=20, r=20, t=60, b=20),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    # --- CONFIGURACIÓN DE EJES (BI STRATEGY) ---
+    fig.update_layout(height=800, template="plotly_dark", showlegend=True, margin=dict(l=20, r=20, t=60, b=20))
+    
+    # Eje de Peso: Zoom de 1kg arriba y abajo del rango real
+    fig.update_yaxes(title_text="Peso (kg)", row=1, col=1, 
+                     range=[df[peso_col].min() - 1, df[peso_col].max() + 1])
+    
+    # Eje de Cintura: Zoom de 3cm arriba y abajo del rango real
+    # ESTO ELIMINA EL BLOQUE GIGANTE DE COLOR Y MUESTRA LA VARIABILIDAD
+    fig.update_yaxes(title_text="Cintura (cm)", row=2, col=1, 
+                     range=[df[cint_col].min() - 3, df[cint_col].max() + 3])
     
     st.plotly_chart(fig, use_container_width=True)
 
