@@ -16,7 +16,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # CONFIGURACIÓN DE DATOS (URL de tu Google Sheet)
-SHEET_URL = "TU_URL_CON_COMILLAS_AQUI"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCINXNe9i8JGaH8f-FY/edit?usp=sharing"
 
 @st.cache_data(ttl=300)
 def load_and_clean_data(url):
