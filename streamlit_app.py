@@ -58,3 +58,4 @@ try:
 
 except Exception as e:
     st.error("Error cargando los datos. Verificá la URL de Google Sheets.")
+    st.exception(e) # Esto te va a mostrar el "Traceback" completo en la web
