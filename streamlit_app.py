@@ -12,7 +12,23 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCI
 
 @st.cache_data(ttl=600) # Se actualiza cada 10 minutos
 def load_data(url):
-    return pd.read_csv(url)
+    # 1. Leemos el CSV avisando que la coma es el separador decimal (típico de Arg)
+    df = pd.read_csv(url, decimal=',') 
+    
+    # 2. Limpieza de seguridad: nos aseguramos que las columnas sean números reales
+    # A veces Sheets manda datos con espacios o formatos raros que confunden a Python
+    cols_numericas = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
+    
+    for col in cols_numericas:
+        if col in df.columns:
+            # Pasamos a string, reemplazamos coma por punto por las dudas, y forzamos a número
+            # 'coerce' transforma lo que no sea número en vacío (NaN) para que no rompa el código
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+    
+    # 3. Quitamos filas que hayan quedado totalmente vacías
+    df = df.dropna(subset=['Fecha'])
+    
+    return df
 
 try:
     df = load_data(SHEET_URL)
