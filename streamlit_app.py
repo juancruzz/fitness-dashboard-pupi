@@ -35,8 +35,8 @@ try:
     df['Fecha'] = pd.to_datetime(df['Fecha'])
     
     # --- Mantenemos toda la lógica anterior de cálculos ---
-    ALTURA_PUPI = 1.75
-    ALTURA_SOFI = 1.62
+    ALTURA_PUPI = 1.66
+    ALTURA_SOFI = 1.56
 
     st.sidebar.title("Configuración")
     perfil = st.sidebar.radio("Usuario:", ["Pupi", "Sofi"])
