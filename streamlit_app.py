@@ -20,29 +20,32 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCI
 
 @st.cache_data(ttl=300)
 def load_and_clean_data(url):
-    # Intentamos leer. Si falla por separador, probamos con ';'
     try:
+        # 1. Intentamos leer con coma, si falla (una sola columna), probamos con punto y coma
         df = pd.read_csv(url, decimal=',', sep=',')
-        if len(df.columns) <= 1: # Si leyó una sola columna, el separador está mal
+        if len(df.columns) <= 1:
             df = pd.read_csv(url, decimal=',', sep=';')
-    except:
-        df = pd.read_csv(url, decimal=',', sep=';')
+    except Exception as e:
+        st.error(f"Falla crítica al leer CSV: {e}")
+        st.stop()
 
-    # Limpieza extrema de encabezados
-    df.columns = [str(c).strip() for c in df.columns]
+    # 2. Limpieza agresiva de encabezados (quita espacios, saltos de línea y BOM de UTF-8)
+    df.columns = [str(c).strip().replace('\ufeff', '') for c in df.columns]
     
-    # VALIDACIÓN TÉCNICA
-    required = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
-    missing = [c for c in required if c not in df.columns]
+    # 3. DIAGNÓSTICO: Si falta alguna columna, mostramos qué encontró
+    cols_necesarias = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
+    faltantes = [c for c in cols_necesarias if c not in df.columns]
     
-    if missing:
-        st.error(f"❌ Error de Mapeo: No encontré las columnas {missing}")
-        st.write("Lo que Python está leyendo es esto:", list(df.columns))
-        st.info("Revisá que los nombres en la fila 1 de tu Google Sheet coincidan exactamente.")
-        st.stop() # Frenamos la ejecución antes del crash
+    if faltantes:
+        st.error(f"❌ Error de mapeo: No encuentro {faltantes}")
+        st.write("### 🔍 Diagnóstico de Columnas")
+        st.write("Python está detectando estas columnas en tu Google Sheet:")
+        st.code(list(df.columns))
+        st.info("💡 **Acción:** Revisá que en tu Google Sheet (fila 1) los nombres coincidan exactamente con la lista de arriba.")
+        st.stop()
 
-    # Conversión forzada a numérico
-    for c in required:
+    # 4. Conversión a números
+    for c in cols_necesarias:
         df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
     
     df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
