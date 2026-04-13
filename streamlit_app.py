@@ -3,75 +3,99 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# CONFIGURACIÓN
-st.set_page_config(page_title="Fitness Analytics | Pupi & Sofi", layout="wide")
+# CONFIGURACIÓN DE PÁGINA "FACHA"
+st.set_page_config(page_title="Pupi & Sofi | Elite Analytics", layout="wide", page_icon="💪")
 
-# URL de tu Google Sheet (Copiá el link de "Compartir" y cambialo para que termine en /export?format=csv)
-# Ejemplo: https://docs.google.com/spreadsheets/d/TU_ID_DE_PLANILLA/export?format=csv
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCINXNe9i8JGaH8f-FY/export?format=csv"
+st.markdown("""
+    <style>
+    .main { background-color: #0d1117; }
+    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 700; color: #58a6ff; }
+    .stMetric { background-color: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; }
+    h1, h2, h3 { color: #f0f6fc; font-family: 'Inter', sans-serif; }
+    </style>
+    """, unsafe_allow_html=True)
 
-@st.cache_data(ttl=600) # Se actualiza cada 10 minutos
-def load_data(url):
-    # 1. Leemos el CSV avisando que la coma es el separador decimal (típico de Arg)
-    df = pd.read_csv(url, decimal=',') 
-    
-    # 2. Limpieza de seguridad: nos aseguramos que las columnas sean números reales
-    # A veces Sheets manda datos con espacios o formatos raros que confunden a Python
-    cols_numericas = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
-    
-    for col in cols_numericas:
-        if col in df.columns:
-            # Pasamos a string, reemplazamos coma por punto por las dudas, y forzamos a número
-            # 'coerce' transforma lo que no sea número en vacío (NaN) para que no rompa el código
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
-    
-    # 3. Quitamos filas que hayan quedado totalmente vacías
-    df = df.dropna(subset=['Fecha'])
-    
-    return df
+# CONFIGURACIÓN DE DATOS (URL de tu Google Sheet)
+SHEET_URL = "TU_URL_CON_COMILLAS_AQUI"
+
+@st.cache_data(ttl=300)
+def load_and_clean_data(url):
+    df = pd.read_csv(url, decimal=',')
+    df.columns = df.columns.str.strip()
+    # Conversión forzada a numérico
+    cols = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
+    for c in cols:
+        df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
+    return df.dropna(subset=['Fecha'])
 
 try:
-    df = load_data(SHEET_URL)
-    df['Fecha'] = pd.to_datetime(df['Fecha'])
+    df = load_and_clean_data(SHEET_URL)
     
-    # --- Mantenemos toda la lógica anterior de cálculos ---
-    ALTURA_PUPI = 1.66
-    ALTURA_SOFI = 1.56
-
-    st.sidebar.title("Configuración")
-    perfil = st.sidebar.radio("Usuario:", ["Pupi", "Sofi"])
-    altura = ALTURA_PUPI if perfil == "Pupi" else ALTURA_SOFI
-    col_peso = f'Peso_{perfil}'
-    col_cintura = f'Cintura_{perfil}'
-
-    # Cálculos automáticos
-    df[f'Var_{perfil}'] = df[col_peso].diff()
-    df[f'Media_{perfil}'] = df[col_peso].rolling(window=3).mean()
-    df[f'ICA_{perfil}'] = (df[col_cintura] / (altura * 100)).round(3)
-
-    # --- DASHBOARD ---
-    st.title(f"📊 Dashboard Fitness Pro: {perfil}")
+    # SIDEBAR - CONTROL DE PERFIL
+    st.sidebar.title("🧬 Perfil de Atleta")
+    user = st.sidebar.selectbox("Seleccionar Atleta", ["Pupi", "Sofi"])
+    altura = 1.75 if user == "Pupi" else 1.62 # Ajustá según real
     
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Peso Actual", f"{df[col_peso].iloc[-1]} kg", f"{round(df[f'Var_{perfil}'].iloc[-1], 2)} kg", delta_color="inverse")
-    with c2:
-        st.metric("Media Móvil", f"{round(df[f'Media_{perfil}'].iloc[-1], 2)} kg")
-    with c3:
-        st.metric("ICA", df[f'ICA_{perfil}'].iloc[-1])
-    with c4:
-        cambio = round(df[col_peso].iloc[-1] - df[col_peso].iloc[0], 2)
-        st.metric("Cambio Total", f"{cambio} kg")
-
-    # Gráfico
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[col_peso], name="Peso Real", line=dict(color='#58a6ff')), secondary_y=False)
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[f'Media_{perfil}'], name="Tendencia", line=dict(color='#3fb950', dash='dot')), secondary_y=False)
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[col_cintura], name="Cintura (cm)", line=dict(color='#f85149')), secondary_y=True)
+    # ASIGNACIÓN DE COLUMNAS
+    peso_col = f'Peso_{user}'
+    cint_col = f'Cintura_{user}'
     
-    fig.update_layout(template="plotly_dark", hovermode="x unified", height=600)
+    # CÁLCULOS AVANZADOS (BI LOGIC)
+    df['Media_Movil'] = df[peso_col].rolling(window=3, min_periods=1).mean()
+    df['ICA'] = (df[cint_col] / (altura * 100)).round(3)
+    
+    # Lógica de Coach (Insights)
+    delta_peso_total = round(df[peso_col].iloc[-1] - df[peso_col].iloc[0], 2)
+    delta_cint_total = round(df[cint_col].iloc[-1] - df[cint_col].iloc[0], 2)
+    
+    # TÍTULO
+    st.title(f"Elite Performance Dashboard: {user}")
+    
+    # FILA 1: KPIs (RESUMEN EJECUTIVO)
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric("Peso Actual", f"{df[peso_col].iloc[-1]} kg", f"{round(df[peso_col].diff().iloc[-1], 2)} kg", delta_color="inverse")
+    with k2:
+        st.metric("Cintura Actual", f"{df[cint_col].iloc[-1]} cm", f"{round(df[cint_col].diff().iloc[-1], 2)} cm", delta_color="inverse")
+    with k3:
+        st.metric("ICA (Salud)", df['ICA'].iloc[-1], help="Índice Cintura/Altura. Meta: < 0.5")
+    with k4:
+        # Insight Dinámico
+        status = "Recomposición" if delta_peso_total > 0 and delta_cint_total <= 0 else "En Proceso"
+        st.metric("Status Coach", status)
+
+    # FILA 2: GRÁFICOS APILADOS (VERTICAL STACK)
+    # Creamos subplots: 2 filas, 1 columna, comparten eje X
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.1,
+                        subplot_titles=(f"Tendencia de Peso (kg)", f"Dinámica de Cintura (cm)"))
+
+    # Gráfico 1: Peso y Media Móvil
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col], name="Peso Diario", mode='lines+markers', line=dict(color='#58a6ff', width=1), opacity=0.5), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df['Media_Movil'], name="Media Móvil (Tendencia)", line=dict(color='#3fb950', width=4)), row=1, col=1)
+
+    # Gráfico 2: Cintura
+    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[cint_col], name="Cintura", fill='tozeroy', line=dict(color='#f85149', width=3)), row=2, col=1)
+
+    # Estilo del Layout
+    fig.update_layout(height=800, template="plotly_dark", showlegend=True,
+                      margin=dict(l=20, r=20, t=60, b=20),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    
     st.plotly_chart(fig, use_container_width=True)
 
+    # FILA 3: INSIGHTS MÉDICOS/COACHING
+    st.subheader("💡 Análisis del Coach")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.info(f"Desde el inicio, has cambiado **{delta_peso_total} kg** de peso corporal.")
+    with col_b:
+        if delta_cint_total < 0:
+            st.success(f"¡Excelente! Tu cintura bajó **{abs(delta_cint_total)} cm**. Esto indica pérdida de grasa real.")
+        else:
+            st.warning(f"La cintura varió **{delta_cint_total} cm**. Vigilar calidad de nutrientes.")
+
 except Exception as e:
-    st.error("Error cargando los datos. Verificá la URL de Google Sheets.")
-    st.exception(e) # Esto te va a mostrar el "Traceback" completo en la web
+    st.error("Error en el sistema de telemetría. Revisar conexión con Google Sheets.")
+    st.exception(e)
