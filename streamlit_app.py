@@ -20,13 +20,32 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCI
 
 @st.cache_data(ttl=300)
 def load_and_clean_data(url):
-    df = pd.read_csv(url, decimal=',')
-    df.columns = df.columns.str.strip()
+    # Intentamos leer. Si falla por separador, probamos con ';'
+    try:
+        df = pd.read_csv(url, decimal=',', sep=',')
+        if len(df.columns) <= 1: # Si leyó una sola columna, el separador está mal
+            df = pd.read_csv(url, decimal=',', sep=';')
+    except:
+        df = pd.read_csv(url, decimal=',', sep=';')
+
+    # Limpieza extrema de encabezados
+    df.columns = [str(c).strip() for c in df.columns]
+    
+    # VALIDACIÓN TÉCNICA
+    required = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
+    missing = [c for c in required if c not in df.columns]
+    
+    if missing:
+        st.error(f"❌ Error de Mapeo: No encontré las columnas {missing}")
+        st.write("Lo que Python está leyendo es esto:", list(df.columns))
+        st.info("Revisá que los nombres en la fila 1 de tu Google Sheet coincidan exactamente.")
+        st.stop() # Frenamos la ejecución antes del crash
+
     # Conversión forzada a numérico
-    cols = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
-    for c in cols:
+    for c in required:
         df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
-    df['Fecha'] = pd.to_datetime(df['Fecha'])
+    
+    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
     return df.dropna(subset=['Fecha'])
 
 try:
