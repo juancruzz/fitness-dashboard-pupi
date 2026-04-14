@@ -2,140 +2,173 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime
 
-# CONFIGURACIÓN DE PÁGINA "FACHA"
-st.set_page_config(page_title="Pupi & Sofi | Elite Analytics", layout="wide", page_icon="💪")
+# 1. CONFIGURACIÓN DE PÁGINA ELITE
+st.set_page_config(
+    page_title="PUPI & SOFI | Performance Lab",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# 2. INYECCIÓN DE CSS PROFESIONAL (UI/UX Premium)
 st.markdown("""
     <style>
-    .main { background-color: #0d1117; }
-    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 700; color: #58a6ff; }
-    .stMetric { background-color: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; }
-    h1, h2, h3 { color: #f0f6fc; font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+    
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+        background-color: #050505;
+    }
+    
+    /* Tarjetas estilo Glassmorphism */
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 25px 20px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        transition: transform 0.3s ease;
+    }
+    
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-5px);
+        border-color: #58a6ff;
+    }
+
+    /* Personalización de Títulos */
+    h1 { font-weight: 800; letter-spacing: -1px; color: #ffffff; margin-bottom: 0px; }
+    h3 { color: #8b949e; font-weight: 400; font-size: 1.1rem; }
+
+    /* Estilo de los Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: transparent;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 0px 20px;
+        color: white;
+        border: none;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.1); }
+    .stTabs [aria-selected="true"] { background-color: #58a6ff !important; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# 🛠️ CONFIGURACIÓN DE DATOS - ¡PEGÁ TU LINK AQUÍ!
-# Debe terminar exactamente en /export?format=csv
+# 3. MOTOR DE DATOS (Backend)
+# 🛠️ PEGA TU LINK ACÁ
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1MeXs_qGTPT57Gpf5IfFJvsy0CCINXNe9i8JGaH8f-FY/export?format=csv"
-# ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=300)
-def load_and_clean_data(url):
+@st.cache_data(ttl=60)
+def get_performance_data(url):
     try:
-        # Intento de lectura robusta para configuración regional Argentina
         df = pd.read_csv(url, decimal=',', sep=',')
-        if len(df.columns) <= 1:
-            df = pd.read_csv(url, decimal=',', sep=';')
+        if len(df.columns) <= 1: df = pd.read_csv(url, decimal=',', sep=';')
+        df.columns = [str(c).strip().replace('\ufeff', '') for c in df.columns]
+        num_cols = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
+        for c in num_cols:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
+        df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
+        return df.dropna(subset=['Fecha']).sort_values('Fecha')
+    except:
+        return pd.DataFrame()
+
+# 4. DASHBOARD LOGIC
+df = get_performance_data(SHEET_URL)
+
+if not df.empty:
+    # --- HEADER PROFESIONAL ---
+    st.markdown(f"<h3>{datetime.now().strftime('%A, %d de %B')}</h3>", unsafe_allow_html=True)
+    st.title("Performance Lab: Composición Corporal")
+    
+    # --- SIDEBAR ELITE ---
+    with st.sidebar:
+        st.markdown("## ⚡ Menú de Atleta")
+        user = st.radio("Atleta en foco:", ["Pupi", "Sofi"], label_visibility="collapsed")
+        st.divider()
+        st.info("💡 Este dashboard utiliza telemetría en tiempo real desde Google Sheets.")
+        altura = 1.75 if user == "Pupi" else 1.62
+    
+    peso_col, cint_col = f'Peso_{user}', f'Cintura_{user}'
+    
+    # Procesamiento de Métricas
+    actual_p, actual_c = df[peso_col].iloc[-1], df[cint_col].iloc[-1]
+    prev_p, prev_c = df[peso_col].iloc[-2], df[cint_col].iloc[-2]
+    media_m = df[peso_col].rolling(window=3).mean().iloc[-1]
+    ica = round(actual_c / (altura * 100), 3)
+    
+    # --- INTERFAZ DE TABS (Navegación Pro) ---
+    tab_resumen, tab_detalles, tab_metas = st.tabs(["🚀 Resumen Ejecutivo", "📈 Análisis Profundo", "🎯 Metas y Control"])
+    
+    with tab_resumen:
+        # Fila de KPIs con diseño superior
+        st.markdown("<br>", unsafe_allow_html=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("PESO ACTUAL", f"{actual_p} kg", f"{round(actual_p - prev_p, 2)} kg", delta_color="inverse")
+        k2.metric("PROMEDIO MÓVIL", f"{round(media_m, 2)} kg", "Tendencia real")
+        k3.metric("CINTURA", f"{actual_c} cm", f"{round(actual_c - prev_c, 2)} cm", delta_color="inverse")
+        k4.metric("ÍNDICE ICA", ica, help="ICA ideal < 0.5")
+        
+        # Gráfico de Tendencia Unificado (Compacto)
+        st.markdown("### Tendencia de Performance")
+        fig_main = go.Figure()
+        fig_main.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col].rolling(window=3).mean(), 
+                                    name="Peso (Media)", line=dict(color='#58a6ff', width=4), fill='tozeroy'))
+        fig_main.update_layout(
+            height=400, template="plotly_dark", 
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0)
+        )
+        st.plotly_chart(fig_main, use_container_width=True)
+
+    with tab_detalles:
+        st.markdown("### Correlación Peso vs Cintura")
+        fig_deep = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05)
+        
+        # Peso
+        fig_deep.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col], name="Peso", line=dict(color='#58a6ff')), row=1, col=1)
+        fig_deep.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col].rolling(window=3).mean(), name="Tendencia", line=dict(color='#3fb950', dash='dot')), row=1, col=1)
+        
+        # Cintura
+        fig_deep.add_trace(go.Scatter(x=df['Fecha'], y=df[cint_col], name="Cintura", line=dict(color='#f85149')), row=2, col=1)
+        
+        fig_deep.update_layout(height=600, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig_deep.update_yaxes(range=[df[peso_col].min()-1, df[peso_col].max()+1], row=1, col=1)
+        fig_deep.update_yaxes(range=[df[cint_col].min()-2, df[cint_col].max()+2], row=2, col=1)
+        
+        st.plotly_chart(fig_deep, use_container_width=True)
+
+    with tab_metas:
+        c_a, c_b = st.columns(2)
+        with c_a:
+            st.markdown("### 🏆 Récords del Periodo")
+            st.write(f"**Máximo Histórico:** {df[peso_col].max()} kg")
+            st.write(f"**Mínimo Histórico:** {df[peso_col].min()} kg")
+            st.write(f"**Variación Neta:** {round(actual_p - df[peso_col].iloc[0], 2)} kg")
+        
+        with c_b:
+            st.markdown("### 🧬 Insights del Coach")
+            if ica < 0.5:
+                st.success(f"ICA de {ica}: Estás en rango de salud metabólica óptima.")
+            else:
+                st.warning(f"ICA de {ica}: Objetivo primordial bajar cintura.")
             
-        # Detección de error de Link (HTML en lugar de CSV)
-        if '<!DOCTYPE html>' in str(df.columns) or 'html' in str(df.columns).lower():
-            st.error("🚨 Error de Link: Google mandó una página web en vez de datos.")
-            st.info("Asegurate de que el link termine en /export?format=csv y que la Sheet sea pública.")
-            st.stop()
+            delta_p = actual_p - df[peso_col].iloc[0]
+            delta_c = actual_c - df[cint_col].iloc[0]
             
-    except Exception as e:
-        st.error(f"Falla crítica al conectar con la base de datos: {e}")
-        st.stop()
+            if delta_p > 0 and delta_c <= 0:
+                st.info("ESTADO: RECOMPOSICIÓN ELITE. Ganando masa sin grasa.")
+            elif delta_p < 0 and delta_c < 0:
+                st.success("ESTADO: DÉFICIT EFICIENTE. Perdiendo grasa corporal.")
+            else:
+                st.info("ESTADO: MANTENIMIENTO / AJUSTE.")
 
-    # Limpieza profunda de encabezados
-    df.columns = [str(c).strip().replace('\ufeff', '') for c in df.columns]
-    
-    # Conversión forzada a numérico de todas las columnas de interés
-    cols_necesarias = ['Peso_Pupi', 'Peso_Sofi', 'Cintura_Pupi', 'Cintura_Sofi']
-    for c in cols_necesarias:
-        if c in df.columns:
-            # Limpiamos posibles strings y forzamos float
-            df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
-    
-    # Parseo de fecha flexible
-    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
-    return df.dropna(subset=['Fecha']).sort_values('Fecha')
-
-try:
-    df = load_and_clean_data(SHEET_URL)
-    
-    # SIDEBAR - CONTROL DE PERFIL
-    st.sidebar.title("🧬 Perfil de Atleta")
-    user = st.sidebar.selectbox("Seleccionar Atleta", ["Pupi", "Sofi"])
-    
-    # Alturas reales para el cálculo del ICA (Ajustalas aquí)
-    altura = 1.75 if user == "Pupi" else 1.62 
-    
-    peso_col = f'Peso_{user}'
-    cint_col = f'Cintura_{user}'
-    
-    # CÁLCULOS DE BUSINESS INTELLIGENCE
-    df['Media_Movil'] = df[peso_col].rolling(window=3, min_periods=1).mean()
-    df['ICA'] = (df[cint_col] / (altura * 100)).round(3)
-    
-    # KPIs de Magnitud
-    peso_actual = df[peso_col].iloc[-1]
-    peso_anterior = df[peso_col].iloc[-2] if len(df) > 1 else peso_actual
-    var_semanal = round(peso_actual - peso_anterior, 2)
-    cambio_total = round(peso_actual - df[peso_col].iloc[0], 2)
-    
-    st.title(f"Elite Performance Dashboard: {user}")
-    
-    # --- FILA 1: SCORECARD PRINCIPAL ---
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.metric("Peso Actual", f"{peso_actual} kg", f"{var_semanal} kg", delta_color="inverse")
-    with k2:
-        st.metric("Promedio Hist.", f"{round(df[peso_col].mean(), 2)} kg", help="Tu peso real sin picos.")
-    with k3:
-        st.metric("Cintura Actual", f"{df[cint_col].iloc[-1]} cm", f"{round(df[cint_col].diff().iloc[-1], 2)} cm", delta_color="inverse")
-    with k4:
-        st.metric("ICA (Salud)", df['ICA'].iloc[-1], help="Meta: < 0.5")
-
-    # ESTADÍSTICAS DE VARIABILIDAD (Expander)
-    with st.expander("📊 Ver Análisis de Récords y Variabilidad"):
-        e1, e2, e3, e4 = st.columns(4)
-        e1.metric("Máximo", f"{df[peso_col].max()} kg")
-        e2.metric("Mínimo", f"{df[peso_col].min()} kg")
-        rango = round(df[peso_col].max() - df[peso_col].min(), 2)
-        e3.metric("Rango Var.", f"{rango} kg")
-        e4.metric("Cambio Neto", f"{cambio_total} kg")
-
-    # --- FILA 2: GRÁFICOS APILADOS (BI STYLE) ---
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        vertical_spacing=0.1,
-                        subplot_titles=("Tendencia de Peso (kg)", "Dinámica de Cintura (cm)"))
-
-    # Gráfico Peso
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[peso_col], name="Peso Real", mode='markers+lines', 
-                             line=dict(color='#58a6ff', width=1), opacity=0.4), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df['Media_Movil'], name="Tendencia (Media Móvil)", 
-                             line=dict(color='#3fb950', width=4)), row=1, col=1)
-    
-    # Gráfico Cintura (Con Zoom)
-    fig.add_trace(go.Scatter(x=df['Fecha'], y=df[cint_col], name="Cintura", mode='lines+markers',
-                             line=dict(color='#f85149', width=3), marker=dict(size=8, symbol='diamond')), row=2, col=1)
-    fig.add_hline(y=df[cint_col].mean(), line_dash="dash", line_color="#ffffff", opacity=0.3, row=2, col=1)
-
-    # Configuración de Ejes
-    fig.update_layout(height=800, template="plotly_dark", showlegend=True, margin=dict(l=20, r=20, t=60, b=20))
-    fig.update_yaxes(title_text="Peso (kg)", row=1, col=1, range=[df[peso_col].min() - 1, df[peso_col].max() + 1])
-    fig.update_yaxes(title_text="Cintura (cm)", row=2, col=1, range=[df[cint_col].min() - 3, df[cint_col].max() + 3])
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- FILA 3: INSIGHTS DEL COACH ---
-    st.subheader("💡 Análisis del Coach")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if cambio_total > 0:
-            st.info(f"Ganancia de **{cambio_total} kg**. Si la cintura no sube, es músculo puro.")
-        else:
-            st.success(f"Pérdida de **{abs(cambio_total)} kg**. ¡Vas por el buen camino!")
-    with col_b:
-        delta_cint = round(df[cint_col].iloc[-1] - df[cint_col].iloc[0], 2)
-        if delta_cint <= 0:
-            st.success(f"Cintura controlada (**{delta_cint} cm**). Composición corporal mejorando.")
-        else:
-            st.warning(f"La cintura subió **{delta_cint} cm**. Ajustar la calidad de la comida.")
-
-except Exception as e:
-    st.error("Error en la telemetría. Verificá tu Google Sheet y el link.")
-    st.exception(e)
+else:
+    st.error("⚠️ No se pudo conectar con la base de datos. Verificá la URL de Google Sheets.")
